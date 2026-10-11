@@ -619,19 +619,12 @@
     <span>RESTAURANT DESIGN AND SETUP SURVEY</span>
   </div>
   <div class="version-tag">V 2.0</div>
-  <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;max-width:400px;margin:0 auto">
-    <span style="font-family:DM Mono,monospace;font-size:10px;color:#666;letter-spacing:2px;text-transform:uppercase;flex-shrink:0">Site:</span>
-    <select id="site-select" onchange="switchSite(this.value)" style="flex:1;background:#1c1c1c;border:1px solid #444;color:#e8ff47;font-family:Bebas Neue,sans-serif;font-size:15px;font-weight:600;letter-spacing:1px;padding:4px 8px;outline:none;height:32px"></select>
-    <button onclick="openSiteManager()" style="background:transparent;border:1px solid #444;color:#47c4ff;font-family:DM Mono,monospace;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:1px;text-transform:uppercase">Sites</button>
-  </div>
-  <div style="font-size:10px;letter-spacing:1px;flex-shrink:0;font-family:DM Mono,monospace" id="api-status"></div>
 </div>
 
 <div class="tab-nav">
   <button class="tab-btn build active" onclick="switchTab('build')">BUILD</button>
   <button class="tab-btn survey" onclick="switchTab('survey')">SURVEY</button>
   <button class="tab-btn demo" onclick="switchTab('demo')">DEMO</button>
-  <button onclick="saveSiteData()" style="margin-left:auto;background:transparent;border:1px solid #e8ff47;color:#e8ff47;font-family:'DM Mono',monospace;font-size:11px;padding:6px 16px;cursor:pointer;letter-spacing:1px;text-transform:uppercase">SAVE TO CLOUD</button>
 </div>
 
 <div class="main">
@@ -1155,121 +1148,6 @@
 
 <script>
   
-// ==================== RIE API ====================
-const API = 'https://rie-api-production.up.railway.app';
-let appState = { sites: {} };
-let activeSiteId = null;
-
-async function apiFetch(path, method, body) {
-  const opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(API + path, opts);
-  if (!res.ok) throw new Error('API error ' + res.status);
-  return res.json();
-}
-
-function showStatus(msg, color) {
-  const el = document.getElementById('api-status');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = color || '#666';
-  if (color === '#47ff8a') setTimeout(() => { el.textContent = ''; }, 3000);
-}
-
-async function loadApp() {
-  showStatus('Connecting...', '#ffb347');
-  try {
-    const sites = await apiFetch('/sites');
-    appState.sites = {};
-    sites.forEach(s => { appState.sites[s.id] = { name: s.name }; });
-    if (Object.keys(appState.sites).length === 0) {
-      const id = 'site-' + Date.now();
-      await apiFetch('/sites', 'POST', { id, name: 'Default Site' });
-      appState.sites[id] = { name: 'Default Site' };
-    }
-    const saved = localStorage.getItem('rdss_activeSite');
-    activeSiteId = (saved && appState.sites[saved]) ? saved : Object.keys(appState.sites)[0];
-    buildSiteSelect();
-    await loadSiteData(activeSiteId);
-    showStatus('Connected', '#47ff8a');
-  } catch(e) {
-    showStatus('API offline', '#ff4444');
-  }
-}
-
-async function loadSiteData(id) {
-  try {
-    const data = await apiFetch('/sites/' + id + '/design');
-    if (data && Object.keys(data).length > 0) populateFields(data);
-  } catch(e) {}
-}
-
-async function saveSiteData() {
-  const data = collectAllFields();
-  try {
-    await apiFetch('/sites/' + activeSiteId + '/design', 'PUT', data);
-    showStatus('Saved', '#47ff8a');
-  } catch(e) {
-    showStatus('Save failed', '#ff4444');
-  }
-}
-
-function collectAllFields() {
-  const get = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-  return {
-    b_name: get('b-name'), b_concept: get('b-concept'), b_domain: get('b-domain'),
-    b_phone: get('b-phone'), b_address: get('b-address'), b_market: get('b-market'),
-    b_pos: get('b-pos'), b_ordering_platform: get('b-ordering-platform'),
-    b_notes: get('b-notes'), s_name: get('s-name'), s_concept: get('s-concept'),
-    s_domain: get('s-domain'), s_phone: get('s-phone'), s_address: get('s-address'),
-    s_pos_brand: get('s-pos-brand'), s_ordering: get('s-ordering'), s_notes: get('s-notes')
-  };
-}
-
-function populateFields(data) {
-  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
-  set('b-name', data.b_name); set('b-concept', data.b_concept); set('b-domain', data.b_domain);
-  set('b-phone', data.b_phone); set('b-address', data.b_address); set('b-market', data.b_market);
-  set('b-pos', data.b_pos); set('b-ordering-platform', data.b_ordering_platform);
-  set('b-notes', data.b_notes); set('s-name', data.s_name); set('s-concept', data.s_concept);
-  set('s-domain', data.s_domain); set('s-phone', data.s_phone); set('s-address', data.s_address);
-  set('s-pos-brand', data.s_pos_brand); set('s-ordering', data.s_ordering); set('s-notes', data.s_notes);
-  updateScore(); updateSurveyScore();
-}
-
-function buildSiteSelect() {
-  const sel = document.getElementById('site-select');
-  if (!sel) return;
-  sel.innerHTML = '';
-  Object.entries(appState.sites).forEach(([id, site]) => {
-    const opt = document.createElement('option');
-    opt.value = id; opt.textContent = site.name; opt.selected = id === activeSiteId;
-    sel.appendChild(opt);
-  });
-}
-
-async function switchSite(id) {
-  activeSiteId = id;
-  localStorage.setItem('rdss_activeSite', id);
-  showStatus('Loading...', '#ffb347');
-  clearForm('build'); clearForm('survey');
-  await loadSiteData(id);
-  showStatus('', '');
-}
-
-function openSiteManager() {
-  const name = prompt('New site name:');
-  if (!name) return;
-  const id = 'site-' + Date.now();
-  apiFetch('/sites', 'POST', { id, name }).then(() => {
-    appState.sites[id] = { name };
-    buildSiteSelect();
-    switchSite(id);
-  });
-}
-
-document.addEventListener('DOMContentLoaded', loadApp);
-
 // TAB SWITCHING
   function switchTab(tab) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1583,5 +1461,6 @@ document.addEventListener('DOMContentLoaded', loadApp);
   updateCompleteness('build-completeness', 0, 'filled');
   updateCompleteness('survey-completeness', 0, 'filled');
 </script>
+<script src="rie-sync.js"></script>
 </body>
 </html>
