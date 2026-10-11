@@ -83,6 +83,106 @@
     }
   }
 
+
+  const LINKS = {
+    'b-name': 'business_name', 's-name': 'business_name',
+    'b-concept': 'concept', 's-concept': 'concept',
+    'b-domain': 'website', 's-domain': 'website',
+    'b-phone': 'phone', 's-phone': 'phone',
+    'b-address': 'address', 's-address': 'address',
+    's-pos-brand': 'pos_brand',
+    's-ordering': 'ordering_platform'
+  };
+  function linkedFields() {
+    return Object.entries(LINKS).map(([id, key]) => [key, document.getElementById(id)]).filter(([, el]) => el);
+  }
+  function afterProfileApplied() {
+    if (typeof updateScore === 'function') updateScore();
+    if (typeof updateSurveyScore === 'function') updateSurveyScore();
+    queueSave();
+  }
+
+  // ===== SHARED SITE PROFILE =====
+  let profileTimer = null;
+  let profilePending = {};
+
+  // A select left on its first option (Select..., Unknown / TBD) counts as empty.
+  function linkedValue(el) {
+    if (el.tagName === 'SELECT' && el.selectedIndex <= 0) return '';
+    return (el.value || '').trim();
+  }
+
+  function setLinked(el, v) {
+    if (el.tagName === 'SELECT') {
+      const want = String(v).trim().toLowerCase();
+      const opt = [...el.options].find((o) => o.value.toLowerCase() === want || o.text.trim().toLowerCase() === want);
+      if (!opt || el.value === opt.value) return false;
+      el.value = opt.value;
+    } else {
+      if (el.value === v) return false;
+      el.value = v;
+    }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  function applyProfile(profile) {
+    if (!profile) return;
+    const wasRestoring = restoring;
+    restoring = true;
+    let changed = false;
+    try {
+      linkedFields().forEach(([key, el]) => {
+        const v = profile[key];
+        if (v && el !== document.activeElement && setLinked(el, v)) changed = true;
+      });
+    } finally {
+      restoring = wasRestoring;
+    }
+    if (changed) afterProfileApplied();
+  }
+
+  // Push values this tool has but the profile lacks, so older saves fill the profile once.
+  function backfillProfile(profile) {
+    const patch = {};
+    linkedFields().forEach(([key, el]) => {
+      const v = linkedValue(el);
+      if (v && !(profile && profile[key]) && !patch[key]) patch[key] = v;
+    });
+    if (Object.keys(patch).length) sendProfile(patch);
+  }
+
+  async function sendProfile(patch) {
+    if (!activeSiteId) return;
+    try { await api('/sites/' + activeSiteId + '/profile', 'PATCH', patch); } catch (e) {}
+  }
+
+  function queueProfile(target) {
+    if (restoring || !activeSiteId) return;
+    const hit = linkedFields().find(([, el]) => el === target);
+    if (!hit) return;
+    profilePending[hit[0]] = linkedValue(target);
+    clearTimeout(profileTimer);
+    profileTimer = setTimeout(() => {
+      const patch = profilePending;
+      profilePending = {};
+      sendProfile(patch);
+    }, 1200);
+  }
+
+  async function pullProfile(backfill) {
+    if (!activeSiteId) return;
+    try {
+      const profile = await api('/sites/' + activeSiteId + '/profile');
+      applyProfile(profile);
+      if (backfill) backfillProfile(profile);
+    } catch (e) {}
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pullProfile(false);
+  });
+
   async function save() {
     if (!activeSiteId) { status('Pick a site first', 'warn'); return; }
     clearTimeout(saveTimer);
@@ -133,6 +233,7 @@
     status('Loading', 'busy');
     try {
       restore(await api('/sites/' + activeSiteId + '/design'));
+      await pullProfile(true);
       status('Synced', 'ok');
     } catch (e) {
       status('Load failed', 'err');
@@ -189,8 +290,8 @@
     PANELS.forEach((sel) => {
       const panel = document.querySelector(sel);
       if (!panel) return;
-      panel.addEventListener('input', queueSave);
-      panel.addEventListener('change', queueSave);
+      panel.addEventListener('input', (e) => { queueSave(); queueProfile(e.target); });
+      panel.addEventListener('change', (e) => { queueSave(); queueProfile(e.target); });
       panel.addEventListener('click', (e) => { if (e.target.closest('.check-item')) queueSave(); });
     });
     status('Connecting', 'busy');
