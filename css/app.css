@@ -179,3 +179,7 @@ pre.summary { white-space: pre-wrap; font: 12px/1.45 ui-monospace, monospace; ba
 .ft-card { border-color: var(--accent, #0b4ea2); }
 .ft-card h2 { margin: 0 0 6px; font-size: 15px; }
 .ft-card .hint { margin: 4px 0; }
+
+/* Account box at the bottom of the apps menu */
+.acct { display: grid; gap: 8px; margin-top: 18px; }
+.acct input { width: 100%; box-sizing: border-box; }

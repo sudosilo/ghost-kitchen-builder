@@ -1,5 +1,6 @@
 // Menu shared by RTSS and RDSS. Same file in both repos, keep them matched.
 // Each link carries the open site so the next app opens on the same place.
+import { accountBox } from './account.js';
 export const APPS = [
   { id: 'rtss', name: 'RTSS', sub: 'Technology site survey, drive-thru model', url: 'https://rtss-sigma.vercel.app/', param: 'site' },
   { id: 'rdss', name: 'RDSS', sub: 'Design and setup survey', url: 'https://ghost-kitchen-builder.vercel.app/', param: 'site' },
@@ -82,7 +83,7 @@ export function mountMenu(btn, current, getSite) {
     const note = document.createElement('p');
     note.className = 'hint';
     note.textContent = (id ? 'Links open the same site.' : 'Pick a site and the links open it too.') + (IN_FIELD_TWIN ? ' Back to Field Twin is at the top of the screen.' : '');
-    drawer.append(note);
+    drawer.append(note, accountBox());
     drawer.classList.add('open');
     shade.classList.add('open');
     btn.setAttribute('aria-expanded', 'true');

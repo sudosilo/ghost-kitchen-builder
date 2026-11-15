@@ -1,6 +1,7 @@
 // RDSS store. One document per site, saved to the shared RIE API with a copy kept on the phone.
 import { eachField } from './schema.js';
 import { siteFromUrl, siteToUrl } from './apps.js';
+import { authHeader } from './account.js';
 
 export const API = (typeof window !== 'undefined' && window.RIE_API) || 'https://rie-api-production.up.railway.app';
 const SITE_KEY = 'rie_activeSite';
@@ -35,7 +36,7 @@ export function touched(info) {
 function setStatus(msg, kind) { state.status = [msg, kind || '']; emit('status', state.status); }
 
 async function api(path, method, body) {
-  const opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
+  const opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json', ...authHeader() } };
   if (body !== undefined) opts.body = typeof body === 'string' ? body : JSON.stringify(body);
   const res = await fetch(API + path, opts);
   if (!res.ok) throw new Error('API ' + res.status);
