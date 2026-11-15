@@ -21,7 +21,34 @@ export function siteToUrl(id) {
 }
 
 export function appLink(app, siteId) {
-  return siteId ? app.url + '?' + app.param + '=' + encodeURIComponent(siteId) : app.url;
+  const q = [];
+  if (siteId) q.push(app.param + '=' + encodeURIComponent(siteId));
+  if (IN_FIELD_TWIN && app.id !== 'ft') q.push('ft=1');
+  return app.url + (q.length ? '?' + q.join('&') : '');
+}
+
+// ===== OPENED INSIDE FIELD TWIN =====
+// Field Twin opens RTSS and RDSS in a window over its map with ?ft=1. The page asks Field Twin what it knows about
+// the open site, and Field Twin answers with the name, address, location and the stops it logged there.
+// Each app decides what to fill: only questions still blank, so nothing typed here is ever replaced.
+export const IN_FIELD_TWIN = (() => {
+  try { return window.parent !== window && new URLSearchParams(location.search).get('ft') === '1'; } catch (e) { return false; }
+})();
+let ftContext = null;
+const ftSubs = [];
+export function fieldTwinContext() { return ftContext; }
+export function onFieldTwin(fn) { ftSubs.push(fn); }
+export function askFieldTwin(siteId) {
+  ftContext = null;
+  if (!IN_FIELD_TWIN || !siteId) return;
+  try { window.parent.postMessage({ rieReady: { site: siteId } }, '*'); } catch (e) {}
+}
+if (IN_FIELD_TWIN) {
+  window.addEventListener('message', ev => {
+    if (ev.source !== window.parent || !ev.data || !ev.data.rieContext) return;
+    ftContext = ev.data.rieContext;
+    ftSubs.forEach(fn => { try { fn(ftContext); } catch (e) {} });
+  });
 }
 
 // btn: the menu button. current: this app's id. getSite: returns the open site id, or nothing.
@@ -41,6 +68,7 @@ export function mountMenu(btn, current, getSite) {
     head.textContent = 'Apps';
     drawer.append(head);
     APPS.forEach(a => {
+      if (IN_FIELD_TWIN && a.id === 'ft') return;
       const el = document.createElement(a.id === current ? 'div' : 'a');
       el.className = 'app-link' + (a.id === current ? ' here' : '');
       if (a.id !== current) el.href = appLink(a, id);
@@ -53,7 +81,7 @@ export function mountMenu(btn, current, getSite) {
     });
     const note = document.createElement('p');
     note.className = 'hint';
-    note.textContent = id ? 'Links open the same site.' : 'Pick a site and the links open it too.';
+    note.textContent = (id ? 'Links open the same site.' : 'Pick a site and the links open it too.') + (IN_FIELD_TWIN ? ' Back to Field Twin is at the top of the screen.' : '');
     drawer.append(note);
     drawer.classList.add('open');
     shade.classList.add('open');

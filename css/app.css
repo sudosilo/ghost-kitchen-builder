@@ -174,3 +174,8 @@ a.app-link:active { background: var(--soft); }
 .score span { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
 .hint.center { text-align: center; margin-bottom: 8px; }
 pre.summary { white-space: pre-wrap; font: 12px/1.45 ui-monospace, monospace; background: var(--bg); border: 2px solid var(--line); border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; margin: 0 0 10px; }
+
+/* Field Twin card, shown when RDSS is opened inside Field Twin */
+.ft-card { border-color: var(--accent, #0b4ea2); }
+.ft-card h2 { margin: 0 0 6px; font-size: 15px; }
+.ft-card .hint { margin: 4px 0; }

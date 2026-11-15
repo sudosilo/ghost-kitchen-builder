@@ -3,7 +3,7 @@ import { SECTIONS, MODES } from './schema.js';
 import { state, on, get, set, isSet, save, loadSites, openSite, createSite, renameSite, loadDemoDoc, clearMode, blankDoc } from './store.js';
 import { h, fill, fieldGrid, dropCard, readout, download } from './ui.js';
 import { DEMOS } from './demos.js';
-import { mountMenu } from './apps.js';
+import { mountMenu, IN_FIELD_TWIN, askFieldTwin, onFieldTwin, fieldTwinContext } from './apps.js';
 
 const $ = id => document.getElementById(id);
 const TAB_KEY = 'rdss3:tab';
@@ -33,6 +33,7 @@ function renderMode(root, mode) {
   badges = [];
   const score = h('div', { class: 'score' }, h('b', { id: 'scoreVal' }, '0%'), h('span', {}, mode === 'build' ? 'Concept complete' : 'Survey complete'));
   const kids = [h('section', { class: 'card' }, score, h('div', { class: 'progress' }, h('i', { id: 'progressFill' })))];
+  if (mode === 'survey') { const ft = fieldTwinCard(); if (ft) kids.push(ft); }
   SECTIONS.filter(s => s.mode === mode).forEach((sec, n) => {
     const grid = fieldGrid(sec.fields, { get: id => get(sec.id + '.' + id), set: (id, v) => set(sec.id + '.' + id, v) }, { prefix: sec.id + '.', global: get });
     const card = dropCard('r:' + sec.id, String(n + 1).padStart(2, '0') + '  ' + sec.title, '', grid);
@@ -54,6 +55,37 @@ function updateBits() {
   if ($('scoreVal')) $('scoreVal').textContent = pct + '%';
   if ($('progressFill')) $('progressFill').style.width = pct + '%';
   $('siteTitle').textContent = get('sId.name') || get('bId.name') || (state.demo ? 'Demo concept' : 'New survey');
+}
+
+
+// ===== FROM FIELD TWIN =====
+// Opened inside Field Twin, the blank identity questions fill from what Field Twin knows about this place:
+// name, address and location. Anything already answered is left alone.
+let ftFilled = [];
+function fieldTwinFill(ctx) {
+  if (!ctx || ctx.site !== state.siteId || state.demo) return;
+  ftFilled = [];
+  const put = (path, v, label) => {
+    if (v === undefined || v === null || v === '' || isSet(get(path))) return;
+    set(path, String(v));
+    ftFilled.push(label);
+  };
+  put('sId.name', ctx.business, 'name');
+  const addr = [ctx.address, [ctx.city, ctx.state].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  put('sId.address', addr, 'address');
+  if (isFinite(ctx.lat) && isFinite(ctx.lon) && !isSet(get('sId.lat')) && !isSet(get('sId.lon'))) { put('sId.lat', ctx.lat, 'location'); put('sId.lon', ctx.lon, ''); }
+  ftFilled = ftFilled.filter(Boolean);
+  show();
+  if (ftFilled.length) save();
+}
+function fieldTwinCard() {
+  const ctx = fieldTwinContext();
+  if (!IN_FIELD_TWIN || !ctx || ctx.site !== state.siteId || state.demo) return null;
+  const n = (ctx.stops || []).length;
+  return h('section', { class: 'card ft-card' },
+    h('h2', {}, 'From Field Twin'),
+    h('p', { class: 'hint' }, ftFilled.length ? 'Filled from Field Twin: ' + ftFilled.join(', ') + '. Anything already answered was left alone.' : 'Identity answers here already match or were typed in, so nothing was changed.'),
+    h('p', { class: 'hint' }, n ? 'Field Twin has ' + n + (n === 1 ? ' stop' : ' stops') + ' logged at this site. Its visit log is in RTSS.' : 'No Field Twin stops logged at this site yet.'));
 }
 
 function renderDemo(root) {
@@ -141,7 +173,8 @@ function init() {
   });
   on('status', ([msg, kind]) => { const el = $('status'); el.textContent = msg; el.dataset.kind = kind; });
   on('sites', fillSites);
-  on('load', () => { fillSites(); show(); });
+  on('load', () => { fillSites(); show(); askFieldTwin(state.siteId); });
+  onFieldTwin(fieldTwinFill);
   on('change', updateBits);
   mountMenu($('menuBtn'), 'rdss', () => state.siteId);
   show();
